@@ -1,0 +1,601 @@
+<title>模擬面接ルーム</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<style>
+/* Layout: 1カラムの「面接シート」。質問は明朝で大きく、操作系は角ゴシックで静かに */
+:root {
+  --bg: #f3f4f7;
+  --paper: #ffffff;
+  --ink: #1b2030;
+  --muted: #646b7d;
+  --line: #dde0e8;
+  --navy: #22346b;
+  --navy-ink: #ffffff;
+  --navy-soft: #e6eaf5;
+  --amber: #b4610f;
+  --amber-soft: #fbefe2;
+  --good: #1e7a52;
+  --bad: #b3322f;
+  --display: "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", serif;
+  --body: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12151d; --paper: #1a1f2b; --ink: #e7e9f0; --muted: #9aa1b3; --line: #2c3343;
+    --navy: #8ea6ec; --navy-ink: #10162a; --navy-soft: #232c45;
+    --amber: #f0a75b; --amber-soft: #3a2a19; --good: #5cc99a; --bad: #ef7c78;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12151d; --paper: #1a1f2b; --ink: #e7e9f0; --muted: #9aa1b3; --line: #2c3343;
+  --navy: #8ea6ec; --navy-ink: #10162a; --navy-soft: #232c45;
+  --amber: #f0a75b; --amber-soft: #3a2a19; --good: #5cc99a; --bad: #ef7c78;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.75; }
+.wrap { max-width: 720px; margin: 0 auto; padding-inline: 16px; padding-block: 20px 56px; display: grid; gap: 16px; }
+header.top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+header.top h1 { font-family: var(--display); font-size: 1.6rem; margin: 0; letter-spacing: 0.04em; text-wrap: balance; }
+header.top .sub { color: var(--muted); font-size: 0.85rem; }
+.sheet { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 20px; display: grid; gap: 14px; min-width: 0; }
+.sheet h2 { font-size: 1rem; margin: 0; letter-spacing: 0.06em; }
+.eyebrow { font-size: 0.75rem; letter-spacing: 0.12em; color: var(--muted); }
+label { display: grid; gap: 4px; font-size: 0.88rem; }
+input[type="text"], textarea, select {
+  width: 100%; font: inherit; color: var(--ink); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px;
+}
+textarea { resize: vertical; }
+:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+fieldset { border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; margin: 0; display: grid; gap: 6px; }
+legend { font-size: 0.88rem; padding: 0 4px; }
+.radio { display: flex; gap: 8px; align-items: center; font-size: 0.92rem; }
+.note { font-size: 0.82rem; color: var(--muted); margin: 0; }
+.warn { font-size: 0.85rem; background: var(--amber-soft); color: var(--amber); border-radius: 8px; padding: 8px 12px; margin: 0; }
+button {
+  font: inherit; cursor: pointer; border-radius: 8px; padding: 10px 18px;
+  border: 1px solid var(--line); background: var(--paper); color: var(--ink);
+}
+button.primary { background: var(--navy); border-color: var(--navy); color: var(--navy-ink); font-weight: 700; }
+button.small { padding: 4px 12px; font-size: 0.85rem; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.row.end { justify-content: flex-end; }
+
+/* 面接中 */
+.progress { display: flex; gap: 6px; }
+.progress span { flex: 1; height: 4px; border-radius: 2px; background: var(--line); }
+.progress span.done { background: var(--navy); }
+.progress span.now { background: var(--amber); }
+.badge { display: inline-block; font-size: 0.78rem; padding: 2px 10px; border-radius: 999px; background: var(--navy-soft); color: var(--navy); font-weight: 700; justify-self: start; }
+.badge.follow { background: var(--amber-soft); color: var(--amber); }
+.reaction { color: var(--muted); margin: 0; font-size: 0.92rem; }
+.question { font-family: var(--display); font-size: 1.45rem; line-height: 1.6; margin: 0; text-wrap: pretty; }
+.listen { font-size: 1.1rem; color: var(--muted); margin: 0; }
+.timer { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 0.9rem; }
+.dictation { font-size: 0.85rem; background: var(--navy-soft); border-radius: 8px; padding: 10px 12px; margin: 0; }
+.dictation kbd { font-family: var(--body); border: 1px solid var(--line); background: var(--paper); border-radius: 4px; padding: 0 5px; }
+.status { color: var(--bad); font-size: 0.88rem; margin: 0; }
+
+/* 結果 */
+.score { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
+.grade { font-family: var(--display); font-size: 2.4rem; width: 76px; height: 76px; border-radius: 50%; display: grid; place-items: center; background: var(--navy); color: var(--navy-ink); }
+.points { font-family: var(--display); font-size: 2.6rem; font-variant-numeric: tabular-nums; line-height: 1; }
+.points small { font-size: 1rem; color: var(--muted); font-family: var(--body); }
+.crit { display: grid; gap: 4px; }
+.crit-head { display: flex; justify-content: space-between; gap: 8px; font-weight: 700; font-size: 0.92rem; }
+.crit-head span:last-child { font-variant-numeric: tabular-nums; }
+.dots { display: flex; gap: 4px; }
+.dots i { width: 18px; height: 6px; border-radius: 3px; background: var(--line); }
+.dots i.on { background: var(--navy); }
+.crit p, .qa, .fb { margin: 0; font-size: 0.9rem; }
+.crit p { color: var(--muted); }
+ul.list { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; }
+details { border-top: 1px solid var(--line); padding-top: 10px; }
+details > div { display: grid; gap: 8px; margin-top: 8px; }
+summary { cursor: pointer; font-weight: 700; }
+.qa { border-left: 3px solid var(--line); padding-left: 10px; }
+.qa b { display: block; }
+.example { background: var(--bg); border-radius: 8px; padding: 10px 12px; font-size: 0.9rem; }
+
+/* 待機中 */
+.overlay { position: fixed; inset: 0; background: color-mix(in srgb, var(--bg) 82%, transparent); display: grid; place-items: center; z-index: 10; padding: 16px; }
+.overlay .box { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 22px; display: grid; gap: 12px; justify-items: center; max-width: 360px; text-align: center; }
+.spinner { width: 34px; height: 34px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--navy); animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 3s; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <h1>模擬面接ルーム</h1>
+    <span class="sub">AI面接官が質問・深堀・評価します</span>
+  </header>
+
+  <!-- 設定 -->
+  <section id="screen-setup" class="sheet">
+    <span class="eyebrow">面接の設定</span>
+    <div class="grid2">
+      <label for="interviewType">面接の種類
+        <select id="interviewType">
+          <option>新卒採用</option>
+          <option>中途採用（転職）</option>
+          <option>アルバイト・パート</option>
+          <option>インターン</option>
+          <option>大学・高校入試</option>
+        </select>
+      </label>
+      <label for="role">志望職種・企業（任意）
+        <input id="role" type="text" placeholder="例: ITエンジニア / 〇〇株式会社 営業職">
+      </label>
+    </div>
+    <label for="notes">経歴・アピールしたいこと（任意）
+      <textarea id="notes" rows="2" placeholder="例: 大学でデータ分析のゼミ。飲食店アルバイトでリーダー経験3年。"></textarea>
+    </label>
+    <div class="grid2">
+      <label for="count">質問数
+        <select id="count"><option value="3">3問</option><option value="5" selected>5問</option><option value="8">8問</option></select>
+      </label>
+      <label for="maxFollowups">1問あたりの深堀（最大）
+        <select id="maxFollowups"><option value="0">なし</option><option value="1">1回</option><option value="2" selected>2回</option><option value="3">3回</option></select>
+      </label>
+    </div>
+    <fieldset id="mode-set">
+      <legend>質問の聞き方</legend>
+      <label class="radio"><input type="radio" name="qmode" id="qmode-both" value="both" checked> 画面表示＋読み上げ</label>
+      <label class="radio"><input type="radio" name="qmode" id="qmode-voice" value="voice"> 音声だけで聞く（本番モード）</label>
+      <label class="radio"><input type="radio" name="qmode" id="qmode-text" value="text"> 画面表示だけ</label>
+      <div class="grid2" id="voice-settings">
+        <label for="voice">声
+          <select id="voice"><option value="">標準（日本語）</option></select>
+        </label>
+        <label for="rate">読み上げの速さ
+          <select id="rate"><option value="0.8">ゆっくり</option><option value="1" selected>ふつう</option><option value="1.2">速め</option></select>
+        </label>
+      </div>
+    </fieldset>
+    <p class="note">回答は文字で入力します。キーボードの<strong>音声入力</strong>を使えば、話して答えられます（Mac: <kbd>fn</kbd>キーを2回、Windows: <kbd>⊞</kbd>+<kbd>H</kbd>、スマホ: キーボードのマイク）。初回は Claude の利用を許可するか確認が出ます（あなたの Claude プランの利用枠を使います）。</p>
+    <p id="no-claude" class="warn" hidden>この表示では Claude を呼び出せないため、定番の質問で練習します（深堀と評価はありません）。claude.ai で開くと使えます。</p>
+    <div class="row end"><button id="btn-start" class="primary">面接を始める</button></div>
+  </section>
+
+  <!-- 面接中 -->
+  <section id="screen-interview" class="sheet" hidden>
+    <div class="progress" id="progress"></div>
+    <p id="reaction" class="reaction" hidden></p>
+    <span id="q-label" class="badge">質問 1</span>
+    <p id="question" class="question"></p>
+    <p id="listen-hint" class="listen" hidden>質問を聞いて答えてください</p>
+    <div class="row">
+      <button id="btn-speak" class="small">もう一度聞く</button>
+      <button id="btn-reveal" class="small" hidden>質問文を表示</button>
+    </div>
+    <label for="answer">あなたの回答
+      <textarea id="answer" rows="7" placeholder="ここをクリックして音声入力で話すか、入力してください"></textarea>
+    </label>
+    <p class="dictation">音声入力: Mac は <kbd>fn</kbd> を2回 / Windows は <kbd>⊞</kbd>+<kbd>H</kbd> / スマホはキーボードのマイク。誤変換はそのままでも大丈夫です。</p>
+    <div class="row" style="justify-content: space-between">
+      <span id="timer" class="timer">回答時間 0:00</span>
+      <button id="btn-submit" class="primary">この回答で送信</button>
+    </div>
+    <p id="status" class="status" hidden></p>
+  </section>
+
+  <!-- 結果 -->
+  <section id="screen-result" hidden>
+    <div id="result" style="display:grid;gap:16px"></div>
+    <div class="row end" style="margin-top:16px">
+      <button id="btn-download">記録を保存</button>
+      <button id="btn-restart" class="primary">もう一度練習する</button>
+    </div>
+  </section>
+</div>
+
+<div id="overlay" class="overlay" hidden>
+  <div class="box">
+    <div class="spinner"></div>
+    <p id="overlay-text" style="margin:0">考え中…</p>
+    <button id="btn-cancel" class="small">中止</button>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+// ===== 定番の質問（Claude が使えないときの代わり） =====
+const PRESET = {
+  common: [
+    "まずは簡単に自己紹介をお願いします。",
+    "志望した理由を教えてください。",
+    "あなたの強みと、それを発揮したエピソードを教えてください。",
+    "あなたの弱みは何ですか？また、どう克服しようとしていますか？",
+    "これまでで一番困難だった経験と、それをどう乗り越えたかを教えてください。",
+    "チームで何かに取り組んだ経験と、その中でのあなたの役割を教えてください。",
+    "入社後（入学後）に挑戦したいことは何ですか？",
+    "最後に、何か質問はありますか？",
+  ],
+  "新卒採用": ["学生時代に最も力を入れたこと（ガクチカ）を教えてください。"],
+  "中途採用（転職）": ["これまでの職務経歴と主な実績を教えてください。", "転職を考えた理由を教えてください。"],
+  "アルバイト・パート": ["週に何日、どの時間帯に勤務できますか？"],
+  "インターン": ["このインターンで何を学びたいですか？"],
+  "大学・高校入試": ["本校（本学）を志望した理由を教えてください。"],
+};
+function presetQuestions(type, count) {
+  const [intro, ...rest] = PRESET.common;
+  const closing = rest.pop();
+  const middle = [...(PRESET[type] ?? []), ...rest].slice(0, Math.max(0, count - 2));
+  return [intro, ...middle, closing].slice(0, count);
+}
+
+// ===== 状態 =====
+const state = {
+  setup: null, mode: "both", voiceURI: "", rate: 1,
+  questions: [], qIndex: 0, maxFollowups: 2, followupsUsed: 0,
+  turns: [], current: { text: "", isFollowup: false },
+  startedAt: null, timerId: null, evaluation: null,
+};
+let sample = null;
+let controller = null;
+
+// ===== Claude 呼び出し =====
+const INTERVIEWER = `あなたは経験豊富な日本企業の面接官兼キャリアコーチです。
+ユーザーは模擬面接で、表示された質問に音声入力または手入力で回答しています。
+音声入力の誤変換・句読点の欠落・フィラーは文脈から好意的に解釈し、内容そのものを判断してください。出力は自然な日本語で書きます。`;
+
+function describeSetup(s) {
+  return [`面接の種類: ${s.interviewType}`, `志望職種・企業: ${s.role || "（指定なし）"}`, s.notes ? `応募者の事前メモ: ${s.notes}` : ""].filter(Boolean).join("\n");
+}
+function describeTurns(turns) {
+  return turns.map((t, i) => `[${i + 1}] ${t.isFollowup ? "深堀質問" : "質問"}: ${t.question}\n回答（約${t.durationSec}秒）: ${t.answer || "（無回答）"}`).join("\n\n");
+}
+
+const ERROR_COPY = {
+  not_granted: "Claude の利用が許可されませんでした。定番の質問で続けます（深堀と評価はありません）。",
+  sampling_disabled: "このアカウントでは Claude を呼び出せません。",
+  rate_limited: "Claude の利用上限に達したか、呼び出しが多すぎます。少し時間をおいてもう一度押してください。",
+  session_expired: "ログインの有効期限が切れました。claude.ai に再ログインしてください。",
+  invalid_json: "Claude の返答を読み取れませんでした。もう一度押してください。",
+  refused: "Claude がこの内容への回答を控えました。回答の内容を変えてお試しください。",
+};
+const copyFor = (e) => ERROR_COPY[e?.code] ?? "Claude との通信がうまくいきませんでした。もう一度押してください。";
+const PERMANENT = new Set(["not_granted", "sampling_disabled", "not_declared", "capability_disabled", "capability_removed"]);
+
+async function ask(prompt, opts, waitText) {
+  if (!sample) throw { code: "sampling_disabled" };
+  controller = new AbortController();
+  overlay(waitText);
+  try {
+    return await sample.json(prompt, { ...opts, signal: controller.signal });
+  } catch (e) {
+    if (PERMANENT.has(e?.code)) { sample = null; $("no-claude").hidden = false; }
+    throw e;
+  } finally {
+    controller = null;
+    overlay(null);
+  }
+}
+
+// ===== 画面 =====
+function show(name) {
+  for (const s of ["setup", "interview", "result"]) $(`screen-${s}`).hidden = s !== name;
+  window.scrollTo({ top: 0 });
+}
+function overlay(text) {
+  $("overlay").hidden = !text;
+  if (text) $("overlay-text").textContent = text;
+}
+function setStatus(text) {
+  $("status").textContent = text ?? "";
+  $("status").hidden = !text;
+}
+
+// ===== 読み上げ =====
+const canSpeak = "speechSynthesis" in window;
+let speakToken = 0;
+const jaVoices = () => (canSpeak ? speechSynthesis.getVoices().filter((v) => v.lang.replace("_", "-").startsWith("ja")) : []);
+function populateVoices() {
+  const sel = $("voice"), cur = sel.value;
+  sel.length = 1;
+  for (const v of jaVoices()) sel.add(new Option(v.name, v.voiceURI));
+  sel.value = cur;
+}
+function speak(text) {
+  if (!canSpeak || state.mode === "text" || !text) return;
+  speakToken++;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = "ja-JP";
+  u.rate = state.rate;
+  const v = jaVoices().find((x) => x.voiceURI === state.voiceURI);
+  if (v) u.voice = v;
+  speak.current = u;
+  speechSynthesis.speak(u);
+}
+function stopSpeaking() { if (canSpeak) speechSynthesis.cancel(); }
+
+// ===== 回答時間（最初に入力した時点から計測） =====
+function resetTimer() {
+  clearInterval(state.timerId);
+  state.startedAt = null;
+  $("timer").textContent = "回答時間 0:00";
+}
+function elapsedSec() { return state.startedAt ? Math.round((Date.now() - state.startedAt) / 1000) : 0; }
+$("answer").addEventListener("input", () => {
+  if (state.startedAt) return;
+  state.startedAt = Date.now();
+  stopSpeaking();
+  state.timerId = setInterval(() => {
+    const s = elapsedSec();
+    $("timer").textContent = `回答時間 ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  }, 500);
+});
+
+// ===== 進行 =====
+function renderProgress() {
+  $("progress").innerHTML = state.questions.map((_, i) => `<span class="${i < state.qIndex ? "done" : i === state.qIndex ? "now" : ""}"></span>`).join("");
+}
+
+function showQuestion(text, isFollowup, reaction = "") {
+  state.current = { text, isFollowup };
+  $("answer").value = "";
+  resetTimer();
+  setStatus("");
+  renderProgress();
+  const total = state.questions.length;
+  $("q-label").textContent = isFollowup ? `深堀質問（${state.qIndex + 1}問目）` : `質問 ${state.qIndex + 1} / ${total}`;
+  $("q-label").classList.toggle("follow", isFollowup);
+  $("question").textContent = text;
+  const voiceOnly = state.mode === "voice";
+  $("question").hidden = voiceOnly;
+  $("listen-hint").hidden = !voiceOnly;
+  $("btn-reveal").hidden = !voiceOnly;
+  $("btn-speak").hidden = !canSpeak || state.mode === "text";
+  $("reaction").textContent = reaction;
+  $("reaction").hidden = !reaction;
+  speak(reaction ? `${reaction} ${text}` : text);
+}
+
+async function start() {
+  state.setup = {
+    interviewType: $("interviewType").value,
+    role: $("role").value.trim(),
+    notes: $("notes").value.trim(),
+  };
+  state.mode = document.querySelector('input[name="qmode"]:checked').value;
+  state.voiceURI = $("voice").value;
+  state.rate = Number($("rate").value);
+  state.maxFollowups = Number($("maxFollowups").value);
+  state.turns = [];
+  state.qIndex = 0;
+  state.followupsUsed = 0;
+  state.evaluation = null;
+  const count = Number($("count").value);
+
+  $("btn-start").disabled = true;
+  await sampleReady;
+  $("btn-start").disabled = false;
+  state.questions = presetQuestions(state.setup.interviewType, count);
+  if (sample) {
+    try {
+      const out = await ask(
+        `${INTERVIEWER}\n\n次の条件の面接で実際に聞かれそうな質問を${count}個作ってください。
+最初は自己紹介などのアイスブレイク、徐々に志望動機・経験・強み弱み・状況対応へ進む自然な順番にし、
+各質問は面接官が口頭で聞く1〜2文にしてください。
+
+${describeSetup(state.setup)}
+
+返答は JSON だけ: {"questions": ["質問1", "質問2"]}`,
+        { modelTier: "quick", cache: false },
+        "質問を用意しています…",
+      );
+      const qs = Array.isArray(out?.questions) ? out.questions.map(String).filter(Boolean) : [];
+      if (qs.length) state.questions = qs.slice(0, count);
+    } catch (e) {
+      if (e?.code === "cancelled") return;
+    }
+  }
+  show("interview");
+  showQuestion(state.questions[0], false);
+}
+
+async function submit() {
+  stopSpeaking();
+  const answer = $("answer").value.trim();
+  const turn = {
+    question: state.current.text,
+    answer,
+    durationSec: elapsedSec(),
+    isFollowup: state.current.isFollowup,
+    mainIndex: state.qIndex,
+  };
+  const left = state.maxFollowups - state.followupsUsed;
+  if (sample && answer && left > 0) {
+    const thread = [...state.turns.filter((t) => t.mainIndex === state.qIndex), turn];
+    const history = state.turns.filter((t) => t.mainIndex !== state.qIndex);
+    try {
+      const out = await ask(
+        `${INTERVIEWER}\n\n${describeSetup(state.setup)}
+
+## これまでのやりとり
+${history.length ? describeTurns(history) : "（なし）"}
+
+## 現在の質問とその回答
+${describeTurns(thread)}
+
+## 指示
+最新の回答を読み、面接官として深堀質問をすべきか判断してください。
+- 抽象的・根拠が薄い・具体例がない・矛盾がある・もっと引き出せる点がある → 深堀する（needs_followup: true）
+- 十分に具体的、または無回答に近い → 次の質問へ（needs_followup: false）
+- この質問ではあと最大 ${left} 回まで深堀できます
+- followup_question は面接官が口頭で聞く1〜2文（深堀しないときは空文字）
+- brief_comment は回答への一言の相づち（30字以内。評価やアドバイスは書かない）
+
+返答は JSON だけ: {"needs_followup": true, "followup_question": "…", "brief_comment": "…"}`,
+        { modelTier: "quick" },
+        "面接官が考えています…",
+      );
+      state.turns.push(turn);
+      if (out?.needs_followup && out.followup_question) {
+        state.followupsUsed++;
+        showQuestion(String(out.followup_question), true, String(out.brief_comment ?? ""));
+      } else {
+        next(String(out?.brief_comment ?? ""));
+      }
+    } catch (e) {
+      if (e?.code !== "cancelled") setStatus(copyFor(e));
+      if (PERMANENT.has(e?.code)) { state.turns.push(turn); next(); }
+    }
+    return;
+  }
+  state.turns.push(turn);
+  next();
+}
+
+function next(reaction = "") {
+  state.qIndex++;
+  state.followupsUsed = 0;
+  if (state.qIndex < state.questions.length) {
+    showQuestion(state.questions[state.qIndex], false, reaction);
+  } else {
+    finish();
+  }
+}
+
+async function finish() {
+  resetTimer();
+  renderProgress();
+  if (!sample) {
+    renderResult(null);
+    show("result");
+    return;
+  }
+  try {
+    const ev = await ask(
+      `${INTERVIEWER}\n\n${describeSetup(state.setup)}
+
+## 面接の全記録
+${describeTurns(state.turns)}
+
+## 指示
+この模擬面接全体を、本番の面接官の視点で率直に評価してください。厳しすぎず甘すぎず。
+- overall_score: 0〜100 の整数。grade: "S" / "A" / "B" / "C" / "D"
+- summary: 2〜3文の総評
+- criteria: 「論理性・結論ファースト」「具体性・エピソード」「志望度・熱意」「自己理解・一貫性」「話し方・簡潔さ」を 1〜5 の整数で採点し、根拠を具体的にコメント
+- strengths / improvements: 回答中の発言を引用しながらそれぞれ3〜5個
+- per_question: 深堀ではない元の質問ごとに出題順で（深堀のやりとりも含めて）1〜5 で採点し、feedback と、応募者の話した内容を活かした「より良い回答例」（200〜300字）
+- next_steps: 次回の練習で意識することを3つ
+
+返答は JSON だけ:
+{"overall_score": 70, "grade": "B", "summary": "…", "criteria": [{"name": "…", "score": 3, "comment": "…"}], "strengths": ["…"], "improvements": ["…"], "per_question": [{"question": "…", "score": 3, "feedback": "…", "better_answer_example": "…"}], "next_steps": ["…"]}`,
+      {},
+      "面接全体を評価しています…（1分ほどかかります）",
+    );
+    state.evaluation = ev;
+    renderResult(ev);
+    show("result");
+  } catch (e) {
+    show("result");
+    renderResult(null, e?.code === "cancelled" ? "評価を中止しました。" : copyFor(e));
+  }
+}
+
+// ===== 結果 =====
+const arr = (v) => (Array.isArray(v) ? v : []);
+function renderResult(ev, errorText) {
+  const transcript = (i) => state.turns.filter((t) => t.mainIndex === i).map((t) => `
+    <div class="qa"><b>${t.isFollowup ? "深堀" : "Q"}: ${esc(t.question)}</b>${esc(t.answer) || "（無回答）"} <span class="note">（${t.durationSec}秒）</span></div>`).join("");
+
+  if (!ev) {
+    $("result").innerHTML = `
+      <section class="sheet">
+        <span class="eyebrow">面接の記録</span>
+        ${errorText ? `<p class="warn">${esc(errorText)}</p><div class="row"><button class="primary" id="btn-retry-eval">評価をやり直す</button></div>` : `<p class="note">Claude を呼び出せないため評価はありません。記録を見返して振り返ってみましょう。</p>`}
+        ${state.questions.map((q, i) => `<details open><summary>${esc(q)}</summary><div>${transcript(i)}</div></details>`).join("")}
+      </section>`;
+    $("btn-retry-eval")?.addEventListener("click", finish);
+    return;
+  }
+  const crit = arr(ev.criteria).map((c) => {
+    const n = Math.max(0, Math.min(5, Math.round(Number(c.score) || 0)));
+    return `<div class="crit"><div class="crit-head"><span>${esc(c.name)}</span><span>${n} / 5</span></div>
+      <div class="dots">${[1, 2, 3, 4, 5].map((k) => `<i class="${k <= n ? "on" : ""}"></i>`).join("")}</div><p>${esc(c.comment)}</p></div>`;
+  }).join("");
+  const list = (items) => `<ul class="list">${arr(items).map((s) => `<li>${esc(s)}</li>`).join("")}</ul>`;
+  const perQ = arr(ev.per_question).map((p, i) => `
+    <details ${i === 0 ? "open" : ""}><summary>${esc(p.question)}（${esc(p.score)} / 5）</summary><div>
+      ${transcript(i)}
+      <p class="fb">${esc(p.feedback)}</p>
+      <span class="eyebrow">より良い回答例</span>
+      <div class="example">${esc(p.better_answer_example)}</div>
+    </div></details>`).join("");
+
+  $("result").innerHTML = `
+    <section class="sheet">
+      <span class="eyebrow">総合評価</span>
+      <div class="score"><div class="grade">${esc(ev.grade)}</div><div class="points">${esc(ev.overall_score)}<small> / 100</small></div></div>
+      <p style="margin:0">${esc(ev.summary)}</p>
+    </section>
+    <section class="sheet"><h2>項目別評価</h2>${crit}</section>
+    <div class="grid2">
+      <section class="sheet"><h2 style="color:var(--good)">良かった点</h2>${list(ev.strengths)}</section>
+      <section class="sheet"><h2 style="color:var(--amber)">改善点</h2>${list(ev.improvements)}</section>
+    </div>
+    <section class="sheet"><h2>質問ごとのフィードバック</h2>${perQ}</section>
+    <section class="sheet"><h2>次回の練習で意識すること</h2>${list(ev.next_steps)}</section>`;
+}
+
+async function download() {
+  const ev = state.evaluation;
+  const lines = [
+    `模擬面接の記録 ${new Date().toLocaleString("ja-JP")}`,
+    `種類: ${state.setup.interviewType} / 志望: ${state.setup.role || "-"}`, "",
+    ...state.turns.flatMap((t) => [`${t.isFollowup ? "【深堀】" : "【質問】"}${t.question}`, `【回答】(${t.durationSec}秒) ${t.answer}`, ""]),
+  ];
+  if (ev) {
+    lines.push(`■ 総合: ${ev.overall_score}/100 (${ev.grade})`, ev.summary ?? "", "");
+    lines.push("■ 項目別", ...arr(ev.criteria).map((c) => `- ${c.name}: ${c.score}/5 ${c.comment}`), "");
+    lines.push("■ 良かった点", ...arr(ev.strengths).map((s) => `- ${s}`), "");
+    lines.push("■ 改善点", ...arr(ev.improvements).map((s) => `- ${s}`), "");
+    lines.push("■ 質問ごと", ...arr(ev.per_question).flatMap((p) => [`- ${p.question} (${p.score}/5)`, `  ${p.feedback}`, `  回答例: ${p.better_answer_example}`]), "");
+    lines.push("■ 次回意識すること", ...arr(ev.next_steps).map((s) => `- ${s}`));
+  }
+  const downloads = await window.claude?.use?.("downloads");
+  if (!downloads) { $("btn-download").hidden = true; return; }
+  try {
+    await downloads.save({ filename: `模擬面接-${new Date().toISOString().slice(0, 10)}.txt`, data: lines.join("\n") });
+  } catch { /* 閲覧者が保存を取り消した場合など */ }
+}
+
+// ===== イベント =====
+$("btn-start").addEventListener("click", start);
+$("btn-submit").addEventListener("click", submit);
+$("btn-speak").addEventListener("click", () => speak(state.current.text));
+$("btn-reveal").addEventListener("click", () => { $("question").hidden = false; $("listen-hint").hidden = true; $("btn-reveal").hidden = true; });
+$("btn-cancel").addEventListener("click", () => controller?.abort());
+$("btn-restart").addEventListener("click", () => { stopSpeaking(); show("setup"); });
+$("btn-download").addEventListener("click", download);
+for (const r of document.querySelectorAll('input[name="qmode"]')) {
+  r.addEventListener("change", () => { $("voice-settings").hidden = $("qmode-text").checked; });
+}
+if (canSpeak) {
+  populateVoices();
+  speechSynthesis.addEventListener?.("voiceschanged", populateVoices);
+} else {
+  $("qmode-text").checked = true;
+  $("qmode-both").disabled = $("qmode-voice").disabled = true;
+  $("voice-settings").hidden = true;
+}
+
+// Claude の呼び出し口（使えない表示では null）
+const sampleReady = (async () => {
+  sample = (await window.claude?.use?.("sample")) ?? null;
+  if (!sample) $("no-claude").hidden = false;
+})();
+</script>
