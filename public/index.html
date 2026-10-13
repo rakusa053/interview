@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>面接練習</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>面接練習</h1>
+    <span class="sub">声で答えて、AI面接官が深堀・評価します</span>
+  </header>
+
+  <main>
+    <!-- 1. 設定 -->
+    <section id="screen-setup" class="screen active">
+      <div class="card">
+        <h2>面接の設定</h2>
+        <label>面接の種類
+          <select id="interviewType">
+            <option>新卒採用</option>
+            <option>中途採用（転職）</option>
+            <option>アルバイト・パート</option>
+            <option>インターン</option>
+            <option>大学・高校入試</option>
+          </select>
+        </label>
+        <label>志望職種・企業（任意）
+          <input id="role" type="text" placeholder="例: ITエンジニア / 株式会社〇〇 営業職" />
+        </label>
+        <label>あなたの経歴・アピールしたいこと（任意・深堀や評価の参考になります）
+          <textarea id="notes" rows="3" placeholder="例: 大学でデータ分析のゼミ。飲食店アルバイトでリーダー経験3年。"></textarea>
+        </label>
+        <div class="row">
+          <label>質問数
+            <select id="count">
+              <option value="3">3問</option>
+              <option value="5" selected>5問</option>
+              <option value="8">8問</option>
+            </select>
+          </label>
+          <label>1問あたりの深堀（最大）
+            <select id="maxFollowups">
+              <option value="0">なし</option>
+              <option value="1">1回</option>
+              <option value="2" selected>2回</option>
+              <option value="3">3回</option>
+            </select>
+          </label>
+        </div>
+        <fieldset>
+          <legend>質問の出し方</legend>
+          <label class="inline"><input type="radio" name="qsource" value="ai" checked /> AIが条件に合わせて作る</label>
+          <label class="inline"><input type="radio" name="qsource" value="preset" /> 定番の質問から出す</label>
+        </fieldset>
+        <label class="inline"><input type="checkbox" id="tts" checked /> 質問を音声で読み上げる</label>
+        <p id="support-warning" class="warning hidden"></p>
+        <button id="btn-start" class="primary big">面接を始める</button>
+      </div>
+    </section>
+
+    <!-- 2. 面接中 -->
+    <section id="screen-interview" class="screen">
+      <div class="progress"><div id="progress-bar"></div></div>
+      <p id="progress-label" class="muted"></p>
+
+      <div class="card question-card">
+        <p id="reaction" class="reaction hidden"></p>
+        <span id="q-label" class="badge">質問 1</span>
+        <p id="question" class="question"></p>
+        <button id="btn-speak" class="ghost small" title="もう一度読み上げる">🔊 読み上げ</button>
+      </div>
+
+      <div class="card">
+        <div class="recorder">
+          <button id="btn-record" class="record" aria-label="録音開始">
+            <span class="dot"></span><span id="record-text">録音開始</span>
+          </button>
+          <span id="timer" class="timer">0:00</span>
+        </div>
+        <label>文字起こし（録音中に自動入力されます。誤変換は手で直せます）
+          <textarea id="answer" rows="6" placeholder="録音ボタンを押して話してください"></textarea>
+        </label>
+        <audio id="playback" controls class="hidden"></audio>
+        <div class="actions">
+          <button id="btn-retry" class="ghost">録り直す</button>
+          <button id="btn-submit" class="primary">この回答で送信</button>
+        </div>
+      </div>
+      <p id="status" class="status hidden"></p>
+    </section>
+
+    <!-- 3. 結果 -->
+    <section id="screen-result" class="screen">
+      <div id="result"></div>
+      <div class="actions center">
+        <button id="btn-download" class="ghost">記録をテキストで保存</button>
+        <button id="btn-restart" class="primary">もう一度練習する</button>
+      </div>
+    </section>
+  </main>
+
+  <div id="overlay" class="overlay hidden"><div class="spinner"></div><p id="overlay-text">考え中…</p></div>
+  <script src="app.js" type="module"></script>
+</body>
+</html>
