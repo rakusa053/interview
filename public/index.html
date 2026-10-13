@@ -54,7 +54,29 @@
           <label class="inline"><input type="radio" name="qsource" value="ai" checked /> AIが条件に合わせて作る</label>
           <label class="inline"><input type="radio" name="qsource" value="preset" /> 定番の質問から出す</label>
         </fieldset>
-        <label class="inline"><input type="checkbox" id="tts" checked /> 質問を音声で読み上げる</label>
+        <fieldset>
+          <legend>質問の聞き方</legend>
+          <label class="inline"><input type="radio" name="qmode" value="both" checked /> 画面表示＋読み上げ</label>
+          <label class="inline"><input type="radio" name="qmode" value="voice" /> 音声だけで聞く（本番モード）</label>
+          <label class="inline"><input type="radio" name="qmode" value="text" /> 画面表示だけ</label>
+          <p class="muted hint">本番モードでは質問文を表示せず、合成音声の質問だけを聞いて答えます。聞き取れなかったときは再生し直したり、質問文を表示したりできます。</p>
+          <div id="voice-settings">
+            <div class="row">
+              <label>声
+                <select id="voice"><option value="">ブラウザの標準（日本語）</option></select>
+              </label>
+              <label>読み上げの速さ
+                <select id="rate">
+                  <option value="0.8">ゆっくり</option>
+                  <option value="1" selected>ふつう</option>
+                  <option value="1.2">速め</option>
+                </select>
+              </label>
+            </div>
+            <label class="inline"><input type="checkbox" id="autoRecord" /> 読み上げが終わったら自動で録音を始める</label>
+            <button id="btn-voice-test" class="ghost small" type="button">🔊 声を試す</button>
+          </div>
+        </fieldset>
         <p id="support-warning" class="warning hidden"></p>
         <button id="btn-start" class="primary big">面接を始める</button>
       </div>
@@ -69,7 +91,12 @@
         <p id="reaction" class="reaction hidden"></p>
         <span id="q-label" class="badge">質問 1</span>
         <p id="question" class="question"></p>
-        <button id="btn-speak" class="ghost small" title="もう一度読み上げる">🔊 読み上げ</button>
+        <p id="listen-hint" class="question listen hidden">🎧 質問を聞いて答えてください</p>
+        <p id="speaking" class="muted hidden">🔊 読み上げ中…</p>
+        <div class="actions left">
+          <button id="btn-speak" class="ghost small" title="もう一度読み上げる">🔊 もう一度聞く</button>
+          <button id="btn-reveal" class="ghost small hidden">質問文を表示</button>
+        </div>
       </div>
 
       <div class="card">

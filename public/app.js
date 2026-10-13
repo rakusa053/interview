@@ -33,7 +33,10 @@ function presetQuestions(type, count) {
 const state = {
   setup: null,
   maxFollowups: 2,
-  tts: true,
+  mode: "both", // both: 表示＋読み上げ / voice: 音声のみ / text: 表示のみ
+  voiceURI: "",
+  rate: 1,
+  autoRecord: false,
   questions: [],
   qIndex: 0,
   turns: [], // 完了した全てのやりとり { question, answer, durationSec, isFollowup, mainIndex, audioUrl }
@@ -74,13 +77,59 @@ async function api(path, body) {
 }
 
 // ===== 音声読み上げ =====
-function speak(text) {
-  if (!state.tts || !("speechSynthesis" in window)) return;
+const canSpeak = "speechSynthesis" in window;
+let speakToken = 0;
+
+function japaneseVoices() {
+  return canSpeak ? speechSynthesis.getVoices().filter((v) => v.lang.replace("_", "-").startsWith("ja")) : [];
+}
+
+function populateVoices() {
+  const select = $("voice");
+  const current = select.value;
+  select.length = 1; // 「ブラウザの標準」だけ残す
+  for (const v of japaneseVoices()) {
+    const opt = new Option(`${v.name}${v.localService ? "" : "（オンライン）"}`, v.voiceURI);
+    select.add(opt);
+  }
+  select.value = current;
+}
+
+// 読み上げが最後まで終わったら true、途中で止められたら false で解決する
+function speak(text, { voiceURI = state.voiceURI, rate = state.rate } = {}) {
+  if (!canSpeak || !text) return Promise.resolve(false);
+  const token = ++speakToken;
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
   u.lang = "ja-JP";
-  u.rate = 1.0;
-  speechSynthesis.speak(u);
+  u.rate = rate;
+  const voice = japaneseVoices().find((v) => v.voiceURI === voiceURI);
+  if (voice) u.voice = voice;
+  $("speaking").classList.remove("hidden");
+  return new Promise((resolve) => {
+    const done = (completed) => {
+      if (token === speakToken) $("speaking").classList.add("hidden");
+      resolve(completed && token === speakToken);
+    };
+    u.onend = () => done(true);
+    u.onerror = () => done(false);
+    speak.current = u; // Chrome で GC されると onend が呼ばれないことがあるので参照を保持
+    speechSynthesis.speak(u);
+  });
+}
+
+function stopSpeaking() {
+  speakToken++;
+  if (canSpeak) speechSynthesis.cancel();
+  $("speaking").classList.add("hidden");
+}
+
+// 現在の質問を読み上げ、設定に応じて自動で録音を始める
+async function speakQuestion(prefix = "") {
+  const finished = await speak(prefix ? `${prefix} ${state.currentQuestion}` : state.currentQuestion);
+  if (finished && state.autoRecord && !rec.recording && screens.interview.classList.contains("active")) {
+    startRecording();
+  }
 }
 
 // ===== 録音 + 文字起こし =====
@@ -103,6 +152,9 @@ function checkSupport() {
   const msgs = [];
   if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
     msgs.push("このブラウザは録音に対応していません。");
+  }
+  if (!canSpeak) {
+    msgs.push("このブラウザは音声の読み上げに対応していないため、質問は画面表示のみになります。");
   }
   if (!SpeechRecognition) {
     msgs.push("このブラウザは音声の自動文字起こしに対応していません（Chrome / Edge 推奨）。回答欄に手入力することもできます。");
@@ -148,7 +200,7 @@ function startRecognition() {
 
 async function startRecording() {
   setStatus("");
-  window.speechSynthesis?.cancel();
+  stopSpeaking();
   try {
     rec.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   } catch {
@@ -227,11 +279,16 @@ function showQuestion(text, isFollowup, reaction = "") {
   $("q-label").textContent = isFollowup ? `深堀質問（質問 ${state.qIndex + 1}）` : `質問 ${state.qIndex + 1} / ${total}`;
   $("q-label").classList.toggle("followup", isFollowup);
   $("question").textContent = text;
+  const voiceOnly = state.mode === "voice";
+  $("question").classList.toggle("hidden", voiceOnly);
+  $("listen-hint").classList.toggle("hidden", !voiceOnly);
+  $("btn-reveal").classList.toggle("hidden", !voiceOnly);
+  $("btn-speak").classList.toggle("hidden", !canSpeak);
   $("reaction").textContent = reaction;
   $("reaction").classList.toggle("hidden", !reaction);
   $("progress-bar").style.width = `${(state.qIndex / total) * 100}%`;
   $("progress-label").textContent = `${state.qIndex + 1} 問目 / 全 ${total} 問`;
-  speak(reaction ? `${reaction} ${text}` : text);
+  if (state.mode !== "text") speakQuestion(reaction);
 }
 
 async function startInterview() {
@@ -242,7 +299,10 @@ async function startInterview() {
   };
   const count = Number($("count").value);
   state.maxFollowups = Number($("maxFollowups").value);
-  state.tts = $("tts").checked;
+  state.mode = document.querySelector('input[name="qmode"]:checked').value;
+  state.voiceURI = $("voice").value;
+  state.rate = Number($("rate").value);
+  state.autoRecord = $("autoRecord").checked;
   state.turns = [];
   state.thread = [];
   state.qIndex = 0;
@@ -269,6 +329,7 @@ async function startInterview() {
 }
 
 async function submitAnswer() {
+  stopSpeaking();
   if (rec.recording) stopRecording();
   const answer = $("answer").value.trim();
   if (!answer && !confirm("回答が空です。このまま次へ進みますか？")) return;
@@ -329,7 +390,7 @@ function toApiTurn(t) {
 
 async function finishInterview() {
   $("progress-bar").style.width = "100%";
-  window.speechSynthesis?.cancel();
+  stopSpeaking();
   overlay("面接全体を評価しています…（30秒〜1分ほどかかります）");
   try {
     const evaluation = await api("/api/evaluate", { setup: state.setup, turns: state.turns.map(toApiTurn) });
@@ -442,11 +503,41 @@ $("btn-record").addEventListener("click", () => (rec.recording ? stopRecording()
 $("btn-retry").addEventListener("click", resetRecorder);
 $("btn-submit").addEventListener("click", submitAnswer);
 $("btn-speak").addEventListener("click", () => {
-  const prev = state.tts;
-  state.tts = true;
-  speak(state.currentQuestion);
-  state.tts = prev;
+  if (rec.recording) stopRecording();
+  speakQuestion();
 });
+$("btn-reveal").addEventListener("click", () => {
+  $("question").classList.remove("hidden");
+  $("listen-hint").classList.add("hidden");
+  $("btn-reveal").classList.add("hidden");
+});
+$("btn-voice-test").addEventListener("click", () =>
+  speak("それでは面接を始めます。まずは簡単に自己紹介をお願いします。", {
+    voiceURI: $("voice").value,
+    rate: Number($("rate").value),
+  }),
+);
+for (const radio of document.querySelectorAll('input[name="qmode"]')) {
+  radio.addEventListener("change", updateVoiceSettings);
+}
+function updateVoiceSettings() {
+  const mode = document.querySelector('input[name="qmode"]:checked').value;
+  $("voice-settings").classList.toggle("hidden", mode === "text");
+}
+if (canSpeak) {
+  populateVoices();
+  speechSynthesis.addEventListener("voiceschanged", populateVoices);
+} else {
+  // 読み上げ非対応のブラウザでは音声モードを選べないようにする
+  for (const radio of document.querySelectorAll('input[name="qmode"]')) {
+    if (radio.value !== "text") radio.disabled = true;
+  }
+  document.querySelector('input[name="qmode"][value="text"]').checked = true;
+  updateVoiceSettings();
+}
 $("btn-download").addEventListener("click", downloadTranscript);
-$("btn-restart").addEventListener("click", () => show("setup"));
+$("btn-restart").addEventListener("click", () => {
+  stopSpeaking();
+  show("setup");
+});
 checkSupport();

@@ -148,3 +148,7 @@ details summary { cursor: pointer; font-weight: 600; }
 .qa { font-size: 0.92rem; margin: 8px 0; padding: 8px 12px; border-left: 3px solid var(--border); }
 .qa .q { font-weight: 600; }
 .example { background: var(--bg); border-radius: 8px; padding: 10px 12px; font-size: 0.92rem; }
+
+.hint { margin: 4px 0 8px; font-size: 0.85rem; }
+.question.listen { color: var(--muted); }
+.actions.left { justify-content: flex-start; }
