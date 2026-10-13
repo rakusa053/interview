@@ -16,7 +16,22 @@
 5. **最終評価**: 100点満点のスコアと S〜D のランク、5項目の評価（論理性・具体性・熱意・一貫性・話し方）、良かった点・改善点、質問ごとのフィードバックと「より良い回答例」、次回意識すること
 6. 記録と評価をテキストファイルで保存
 
-## 必要なもの
+## かんたんセットアップ（ダブルクリック）
+
+1. [Node.js](https://nodejs.org/ja)（LTS 版）をインストール
+2. このアプリの ZIP をダウンロードして展開（例:「書類」フォルダに置く）
+3. 展開したフォルダの中のファイルをダブルクリック
+   - **Mac**: `setup-mac.command`
+     （「開発元を確認できない」と出たら、右クリック →「開く」→「開く」）
+   - **Windows**: `setup-windows.bat`
+     （「PC を保護しました」と出たら、「詳細情報」→「実行」）
+4. Claude Desktop を完全に終了して起動し直し、チャットで「**模擬面接をして**」と話しかける
+
+セットアップは、必要な部品のインストールと、Claude Desktop への登録（`claude_desktop_config.json` に追記。元のファイルは `.bak` として保存）を自動で行います。
+API モードで使うときは、`.env` に API キーを書いてから `start-api-mac.command` / `start-api-windows.bat` をダブルクリックします。
+
+> フォルダを移動したら、もう一度セットアップを実行してください（登録されている場所が変わるため）。
+
 
 - Node.js 20.12 以上
 - Claude API キー（[Claude Console](https://console.anthropic.com/) で発行）
@@ -102,6 +117,7 @@ server/index.ts   Express サーバー（API モード: API とフロントエ�
 server/claude.ts  Claude API の呼び出し（質問生成・深堀判定・最終評価）
 server/schemas.ts 両モード共通のスキーマ（評価の形式など）
 mcp/server.ts     MCP サーバー（Claude 連携モード）
+scripts/setup.mjs セットアップ（Claude Desktop への登録など）
 public/           画面（HTML / CSS / JavaScript）
 ```
 
