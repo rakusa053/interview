@@ -29,6 +29,9 @@ function presetQuestions(type, count) {
   return [intro, ...picked, closing].slice(0, count);
 }
 
+// ?mode=mcp のときは MCP サーバー経由で Claude のアプリ（Claude Desktop など）が面接官を務める
+const MCP_MODE = new URLSearchParams(location.search).get("mode") === "mcp";
+
 // ===== 状態 =====
 const state = {
   setup: null,
@@ -38,6 +41,7 @@ const state = {
   rate: 1,
   autoRecord: false,
   questions: [],
+  total: 0,
   qIndex: 0,
   turns: [], // 完了した全てのやりとり { question, answer, durationSec, isFollowup, mainIndex, audioUrl }
   thread: [], // 現在の質問（＋深堀）のやりとり
@@ -275,7 +279,7 @@ function showQuestion(text, isFollowup, reaction = "") {
   resetRecorder();
   setStatus("");
 
-  const total = state.questions.length;
+  const total = state.total;
   $("q-label").textContent = isFollowup ? `深堀質問（質問 ${state.qIndex + 1}）` : `質問 ${state.qIndex + 1} / ${total}`;
   $("q-label").classList.toggle("followup", isFollowup);
   $("question").textContent = text;
@@ -291,7 +295,21 @@ function showQuestion(text, isFollowup, reaction = "") {
   if (state.mode !== "text") speakQuestion(reaction);
 }
 
+function readVoiceSettings() {
+  state.mode = document.querySelector('input[name="qmode"]:checked').value;
+  state.voiceURI = $("voice").value;
+  state.rate = Number($("rate").value);
+  state.autoRecord = $("autoRecord").checked;
+}
+
 async function startInterview() {
+  readVoiceSettings();
+  if (MCP_MODE) {
+    mcp.started = true;
+    show("interview");
+    mcpRender(await mcpFetchState().catch(() => null));
+    return;
+  }
   state.setup = {
     interviewType: $("interviewType").value,
     role: $("role").value.trim(),
@@ -299,10 +317,6 @@ async function startInterview() {
   };
   const count = Number($("count").value);
   state.maxFollowups = Number($("maxFollowups").value);
-  state.mode = document.querySelector('input[name="qmode"]:checked').value;
-  state.voiceURI = $("voice").value;
-  state.rate = Number($("rate").value);
-  state.autoRecord = $("autoRecord").checked;
   state.turns = [];
   state.thread = [];
   state.qIndex = 0;
@@ -323,6 +337,7 @@ async function startInterview() {
   } else {
     state.questions = presetQuestions(state.setup.interviewType, count);
   }
+  state.total = state.questions.length;
 
   show("interview");
   showQuestion(state.questions[0], false);
@@ -333,6 +348,7 @@ async function submitAnswer() {
   if (rec.recording) stopRecording();
   const answer = $("answer").value.trim();
   if (!answer && !confirm("回答が空です。このまま次へ進みますか？")) return;
+  if (MCP_MODE) return mcpSubmit(answer);
 
   const turn = {
     question: state.currentQuestion,
@@ -495,6 +511,94 @@ function downloadTranscript() {
   a.download = `interview-${Date.now()}.txt`;
   a.click();
   URL.revokeObjectURL(a.href);
+}
+
+// ===== Claude 連携モード（MCP） =====
+const mcp = {
+  started: false, // 画面で「始める」を押したか
+  questionId: null, // 表示中の質問の ID
+  evaluationShown: false,
+  audio: [], // 送信した回答の録音（サーバーの turns と同じ順）
+};
+const MCP_WAITING = "Claude からの質問を待っています…\nClaude のアプリで「模擬面接をして」と話しかけてください。";
+
+async function mcpFetchState() {
+  const res = await fetch("/mcp-api/state", { cache: "no-store" });
+  if (!res.ok) throw new Error(`サーバーエラー (${res.status})`);
+  return res.json();
+}
+
+function mcpRender(s) {
+  if (!s) {
+    $("mcp-status").textContent = "MCP サーバーに接続できません。Claude のアプリが起動しているか確認してください。";
+    return;
+  }
+  $("mcp-status").textContent = s.active
+    ? "Claude が面接を開始しました。聞き方を選んで「Claude との面接を始める」を押してください。"
+    : "Claude のアプリで「模擬面接をして」と話しかけてください。";
+  if (!s.evaluation) mcp.evaluationShown = false;
+  if (!mcp.started) return;
+
+  if (s.evaluation && !mcp.evaluationShown) {
+    mcp.evaluationShown = true;
+    mcp.questionId = null;
+    stopSpeaking();
+    if (rec.recording) stopRecording();
+    state.setup = s.setup;
+    state.turns = s.turns.map((t, i) => ({ ...t, audioUrl: mcp.audio[i] ?? null }));
+    renderResult(s.evaluation);
+    overlay(null);
+    show("result");
+    return;
+  }
+  if (s.current && s.current.id !== mcp.questionId) {
+    if (mcp.questionId === null && !s.turns.length) mcp.audio = []; // 新しい面接
+    mcp.questionId = s.current.id;
+    state.qIndex = s.current.number - 1;
+    state.total = s.totalQuestions;
+    overlay(null);
+    show("interview");
+    showQuestion(s.current.text, s.current.isFollowup, s.current.reaction);
+    return;
+  }
+  if (!s.current && !s.evaluation && screens.interview.classList.contains("active")) {
+    // 回答送信後や開始前は、Claude の次の動きを待つ
+    overlay(s.active && s.turns.length ? "Claude が次の質問を考えています…" : MCP_WAITING);
+  }
+}
+
+async function mcpSubmit(answer) {
+  try {
+    const res = await fetch("/mcp-api/answer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ questionId: mcp.questionId, answer, durationSec: Math.round(rec.elapsedSec) }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error ?? `サーバーエラー (${res.status})`);
+    mcp.audio.push(rec.audioUrl);
+    overlay("Claude が次の質問を考えています…");
+  } catch (e) {
+    setStatus(e.message);
+  }
+}
+
+async function mcpPoll() {
+  try {
+    mcpRender(await mcpFetchState());
+  } catch {
+    mcpRender(null);
+  }
+  setTimeout(mcpPoll, 1000);
+}
+
+if (MCP_MODE) {
+  $("mcp-intro").classList.remove("hidden");
+  $("api-only").classList.add("hidden");
+  $("btn-start").textContent = "Claude との面接を始める";
+  $("btn-restart").textContent = "設定に戻る";
+  $("overlay-text").style.whiteSpace = "pre-line";
+  mcpPoll();
 }
 
 // ===== イベント =====

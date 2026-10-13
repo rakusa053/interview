@@ -32,11 +32,76 @@ npm start
 
 ブラウザで http://localhost:3000 を開き、マイクの使用を許可してください。
 
-## 構成
+## Claude 連携モード（MCP サーバー）— API 料金なしで使う
+
+Claude Desktop などのアプリにこのアプリを **MCP サーバー** としてつなぐと、チャット中の Claude が面接官になります。
+Claude API を呼ばないので **API 料金はかかりません**（ご契約中の Claude プランの利用枠を使います）。
 
 ```
-server/index.ts   Express サーバー（API とフロントエンドの配信）
-server/claude.ts  Claude の呼び出し（質問生成・深堀判定・最終評価）
+Claude Desktop（面接官: 質問・深堀・評価を考える）
+   │  MCP（start_interview / ask_question / wait_for_answer / show_evaluation）
+   ▼
+MCP サーバー（mcp/server.ts）
+   │  http://localhost:3939/?mode=mcp
+   ▼
+ブラウザの練習画面（質問の表示・読み上げ、回答の録音・文字起こし）
+```
+
+### 設定方法（Claude Desktop）
+
+1. `npm install` を実行しておく（API キーは不要）
+2. Claude Desktop の「設定 → 開発者 → 構成を編集」で `claude_desktop_config.json` を開き、次を追加
+   （パスはこのフォルダの場所に合わせて書き換えてください）
+
+   **Mac**
+   ```json
+   {
+     "mcpServers": {
+       "interview": {
+         "command": "node",
+         "args": [
+           "/Users/あなた/interview/node_modules/tsx/dist/cli.mjs",
+           "/Users/あなた/interview/mcp/server.ts"
+         ]
+       }
+     }
+   }
+   ```
+
+   **Windows**
+   ```json
+   {
+     "mcpServers": {
+       "interview": {
+         "command": "node",
+         "args": [
+           "C:\\Users\\あなた\\interview\\node_modules\\tsx\\dist\\cli.mjs",
+           "C:\\Users\\あなた\\interview\\mcp\\server.ts"
+         ]
+       }
+     }
+   }
+   ```
+   `node` が見つからないと言われる場合は、`"command"` に node のフルパス（Mac は `which node`、Windows は `where node` で確認）を書いてください。
+3. Claude Desktop を再起動する
+4. チャットで「**模擬面接をして**」（例:「新卒のITエンジニア志望で模擬面接をして」）と話しかける
+5. ブラウザで練習画面が開くので、質問の聞き方を選んで「Claude との面接を始める」を押す。あとは画面の質問に声で答えるだけです
+
+Claude Code で使う場合:
+`claude mcp add interview -- node /path/to/interview/node_modules/tsx/dist/cli.mjs /path/to/interview/mcp/server.ts`
+
+### 補足
+- 回答を待つ間、Claude は `wait_for_answer` を繰り返し呼びます（1回あたり最大40秒。`MCP_WAIT_SECONDS` で変更可）
+- 練習画面のポートは `3939`（`MCP_PORT` で変更可）
+- ブラウザの練習画面は **ローカル MCP に対応した Claude Desktop（Mac / Windows）や Claude Code** で使えます。スマホアプリや Web 版の claude.ai からは使えません
+- プランの利用上限の対象になります。長い面接を何度も続けると上限に達することがあります
+
+
+```
+server/index.ts   Express サーバー（API モード: API とフロントエンドの配信）
+server/claude.ts  Claude API の呼び出し（質問生成・深堀判定・最終評価）
+server/schemas.ts 両モード共通のスキーマ（評価の形式など）
+mcp/server.ts     MCP サーバー（Claude 連携モード）
 public/           画面（HTML / CSS / JavaScript）
 ```
 

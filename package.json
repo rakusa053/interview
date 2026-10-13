@@ -7,13 +7,15 @@
   "scripts": {
     "dev": "tsx watch server/index.ts",
     "start": "tsx server/index.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "mcp": "tsx mcp/server.ts"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "express": "^5.3.0",
     "zod": "^4.6.7"
   },

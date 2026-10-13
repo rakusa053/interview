@@ -17,6 +17,11 @@
     <section id="screen-setup" class="screen active">
       <div class="card">
         <h2>面接の設定</h2>
+        <div id="mcp-intro" class="mcp-intro hidden">
+          <p><strong>Claude 連携モード</strong>: 面接官は Claude のアプリ（Claude Desktop など）の Claude が務めます。質問の内容や数は Claude とのチャットで決めます。</p>
+          <p id="mcp-status" class="muted">Claude のアプリで「模擬面接をして」と話しかけてください。</p>
+        </div>
+        <div id="api-only">
         <label>面接の種類
           <select id="interviewType">
             <option>新卒採用</option>
@@ -54,6 +59,7 @@
           <label class="inline"><input type="radio" name="qsource" value="ai" checked /> AIが条件に合わせて作る</label>
           <label class="inline"><input type="radio" name="qsource" value="preset" /> 定番の質問から出す</label>
         </fieldset>
+        </div>
         <fieldset>
           <legend>質問の聞き方</legend>
           <label class="inline"><input type="radio" name="qmode" value="both" checked /> 画面表示＋読み上げ</label>

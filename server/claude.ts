@@ -1,28 +1,14 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
+import { EvaluationOutput, type Evaluation, type Setup, type Turn } from "./schemas.js";
+
+export { SetupSchema, TurnSchema } from "./schemas.js";
 
 const MODEL = process.env.CLAUDE_MODEL ?? "claude-opus-5-5";
 
 // 認証情報は ANTHROPIC_API_KEY（または `ant auth login` のプロファイル）から読み込まれる
 const client = new Anthropic();
-
-// ---------- 入力の型 ----------
-
-export const SetupSchema = z.object({
-  role: z.string().max(200).default(""), // 志望職種・企業など
-  interviewType: z.string().max(100).default("一般"), // 新卒 / 中途 / アルバイト など
-  notes: z.string().max(4000).default(""), // 自己PR・経歴メモなど（任意）
-});
-export type Setup = z.infer<typeof SetupSchema>;
-
-export const TurnSchema = z.object({
-  question: z.string().max(2000),
-  answer: z.string().max(10000),
-  durationSec: z.number().nonnegative().optional(),
-  isFollowup: z.boolean().default(false),
-});
-export type Turn = z.infer<typeof TurnSchema>;
 
 // ---------- 出力の型（Structured Outputs） ----------
 
@@ -36,31 +22,6 @@ const FollowupOutput = z.object({
   brief_comment: z.string(),
 });
 export type Followup = z.infer<typeof FollowupOutput>;
-
-const EvaluationOutput = z.object({
-  overall_score: z.number(),
-  grade: z.string(),
-  summary: z.string(),
-  criteria: z.array(
-    z.object({
-      name: z.string(),
-      score: z.number(),
-      comment: z.string(),
-    }),
-  ),
-  strengths: z.array(z.string()),
-  improvements: z.array(z.string()),
-  per_question: z.array(
-    z.object({
-      question: z.string(),
-      score: z.number(),
-      feedback: z.string(),
-      better_answer_example: z.string(),
-    }),
-  ),
-  next_steps: z.array(z.string()),
-});
-export type Evaluation = z.infer<typeof EvaluationOutput>;
 
 // ---------- プロンプト ----------
 
