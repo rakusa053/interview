@@ -81,6 +81,16 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .timer { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 0.9rem; }
 .dictation { font-size: 0.85rem; background: var(--navy-soft); border-radius: 8px; padding: 10px 12px; margin: 0; }
 .dictation kbd { font-family: var(--body); border: 1px solid var(--line); background: var(--paper); border-radius: 4px; padding: 0 5px; }
+.mic-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+button.mic {
+  display: inline-flex; align-items: center; gap: 10px; padding: 14px 24px; border-radius: 999px;
+  font-weight: 700; font-size: 1rem; background: var(--paper); border: 2px solid var(--navy); color: var(--navy);
+}
+button.mic .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--bad); }
+button.mic.on { background: var(--bad); border-color: var(--bad); color: var(--paper); }
+button.mic.on .dot { background: var(--paper); animation: pulse 1s infinite; }
+@keyframes pulse { 50% { opacity: 0.3; } }
+@media (prefers-reduced-motion: reduce) { button.mic.on .dot { animation: none; } }
 .status { color: var(--bad); font-size: 0.88rem; margin: 0; }
 
 /* 結果 */
@@ -176,12 +186,15 @@ summary { cursor: pointer; font-weight: 700; }
       <button id="btn-speak" class="small">もう一度聞く</button>
       <button id="btn-reveal" class="small" hidden>質問文を表示</button>
     </div>
-    <label for="answer">あなたの回答
-      <textarea id="answer" rows="7" placeholder="ここをクリックして音声入力で話すか、入力してください"></textarea>
-    </label>
-    <p class="dictation">音声入力: Mac は <kbd>fn</kbd> を2回 / Windows は <kbd>⊞</kbd>+<kbd>H</kbd> / スマホはキーボードのマイク。誤変換はそのままでも大丈夫です。</p>
-    <div class="row" style="justify-content: space-between">
+    <div class="mic-row">
+      <button id="btn-mic" class="mic" type="button"><span class="dot"></span><span id="mic-text">タップして話す</span></button>
       <span id="timer" class="timer">回答時間 0:00</span>
+    </div>
+    <p id="dictation-guide" class="dictation" hidden></p>
+    <label for="answer">あなたの回答（話した内容がここに入ります。手で直すこともできます）
+      <textarea id="answer" rows="7" placeholder="「タップして話す」を押して話すか、入力してください"></textarea>
+    </label>
+    <div class="row end">
       <button id="btn-submit" class="primary">この回答で送信</button>
     </div>
     <p id="status" class="status" hidden></p>
@@ -327,7 +340,7 @@ function resetTimer() {
   $("timer").textContent = "回答時間 0:00";
 }
 function elapsedSec() { return state.startedAt ? Math.round((Date.now() - state.startedAt) / 1000) : 0; }
-$("answer").addEventListener("input", () => {
+function startTimer() {
   if (state.startedAt) return;
   state.startedAt = Date.now();
   stopSpeaking();
@@ -335,6 +348,93 @@ $("answer").addEventListener("input", () => {
     const s = elapsedSec();
     $("timer").textContent = `回答時間 ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
   }, 500);
+}
+$("answer").addEventListener("input", startTimer);
+
+// ===== 話して答える =====
+// まずブラウザの音声認識を試し、使えない表示では端末の音声入力（キーボードのマイク）に切り替える
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const mic = { rec: null, on: false, base: "", final: "" };
+let micBlocked = !SR;
+try { if (localStorage.getItem("micBlocked") === "1") micBlocked = true; } catch {}
+
+function dictationHow() {
+  const ua = navigator.userAgent;
+  if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) {
+    return "キーボードが開いたら、右下（または左下）の<strong>マイク</strong>をタップして話してください。話し終えたらもう一度マイクをタップします。";
+  }
+  if (/Android/.test(ua)) return "キーボードが開いたら、<strong>マイク</strong>のボタンをタップして話してください。";
+  if (/Mac/.test(ua)) return "<kbd>fn</kbd>（または <kbd>🌐</kbd>）キーを<strong>2回</strong>押すと音声入力が始まります。話し終えたら <kbd>fn</kbd> をもう一度押します。";
+  if (/Windows/.test(ua)) return "<kbd>⊞ Windows</kbd> + <kbd>H</kbd> を押すと音声入力が始まります。";
+  return "お使いの端末の音声入力（キーボードのマイク）で話してください。";
+}
+
+function useDeviceDictation() {
+  $("dictation-guide").innerHTML = `この画面ではマイクを直接使えないため、端末の音声入力を使います。${dictationHow()}`;
+  $("dictation-guide").hidden = false;
+  $("answer").focus();
+  const end = $("answer").value.length;
+  $("answer").setSelectionRange(end, end);
+}
+
+function setMicUI(on) {
+  mic.on = on;
+  $("btn-mic").classList.toggle("on", on);
+  $("mic-text").textContent = on ? "話し終えたらタップ" : "タップして話す";
+}
+
+function startMic() {
+  stopSpeaking();
+  mic.base = $("answer").value.trim();
+  mic.final = "";
+  let r;
+  try {
+    r = new SR();
+    r.lang = "ja-JP";
+    r.continuous = true;
+    r.interimResults = true;
+    r.onresult = (e) => {
+      let interim = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const res = e.results[i];
+        if (res.isFinal) mic.final += res[0].transcript + "。";
+        else interim += res[0].transcript;
+      }
+      const sep = mic.base && (mic.final || interim) ? "\n" : "";
+      $("answer").value = mic.base + sep + mic.final + interim;
+      startTimer();
+    };
+    r.onerror = (e) => {
+      if (["not-allowed", "service-not-allowed", "audio-capture"].includes(e.error)) {
+        micBlocked = true;
+        try { localStorage.setItem("micBlocked", "1"); } catch {}
+        stopMic();
+        useDeviceDictation();
+      }
+    };
+    // 無音が続くと自動で止まるので、話している間は再開する
+    r.onend = () => { if (mic.on) { try { r.start(); } catch { setMicUI(false); } } };
+    r.start();
+  } catch {
+    micBlocked = true;
+    useDeviceDictation();
+    return;
+  }
+  mic.rec = r;
+  setMicUI(true);
+}
+
+function stopMic() {
+  if (!mic.on && !mic.rec) return;
+  setMicUI(false);
+  try { mic.rec?.stop(); } catch {}
+  mic.rec = null;
+}
+
+$("btn-mic").addEventListener("click", () => {
+  if (mic.on) stopMic();
+  else if (micBlocked) useDeviceDictation();
+  else startMic();
 });
 
 // ===== 進行 =====
@@ -344,6 +444,8 @@ function renderProgress() {
 
 function showQuestion(text, isFollowup, reaction = "") {
   state.current = { text, isFollowup };
+  stopMic();
+  $("dictation-guide").hidden = true;
   $("answer").value = "";
   resetTimer();
   setStatus("");
@@ -407,6 +509,7 @@ ${describeSetup(state.setup)}
 
 async function submit() {
   stopSpeaking();
+  stopMic();
   const answer = $("answer").value.trim();
   const turn = {
     question: state.current.text,
